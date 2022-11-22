@@ -1,0 +1,79 @@
+version: '3.4'
+
+services:
+  redis-cluster-creator:
+    image: redis
+    entrypoint: [/bin/sh,-c,'echo "yes" | redis-cli -a pass.123 --cluster create 192.168.3.28:7000 192.168.3.28:7001 192.168.3.28:7002 192.168.3.28:7003 192.168.3.28:7004 192.168.3.28:7005 --cluster-replicas 1']
+    depends_on:
+      - redis-node1
+      - redis-node2
+      - redis-node3
+      - redis-node4
+      - redis-node5
+      - redis-node6
+
+  redis-node1:
+    build:
+      context: redis
+    ports:
+      - "7000:7000"
+      - "17000:17000"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,    --port,"7000", --cluster-announce-ip,"192.168.3.28"]
+
+  redis-node2:
+    build:
+      context: redis
+    ports:
+      - "7001:7001"
+      - "17001:17001"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,    --port,"7001",--cluster-announce-ip,"192.168.3.28"]
+
+  redis-node3:
+    build:
+      context: redis
+    ports:
+      - "7002:7002"
+      - "17002:17002"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,    --port,"7002",--cluster-announce-ip,"192.168.3.28"]
+
+  redis-node4:
+    build:
+      context: redis
+    ports:
+      - "7003:7003"
+      - "17003:17003"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,    --port,"7003",--cluster-announce-ip,"192.168.3.28"]
+    depends_on:
+      - redis-node1
+      - redis-node2
+      - redis-node3
+
+  redis-node5:
+    build:
+      context: redis
+    ports:
+      - "7004:7004"
+      - "17004:17004"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,    --port,"7004",--cluster-announce-ip,"192.168.3.28"]
+    depends_on:
+      - redis-node1
+      - redis-node2
+      - redis-node3
+      
+  redis-node6:
+    build:
+      context: redis
+    ports:
+      - "7005:7005"
+      - "17005:17005"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,    --port,"7005",--cluster-announce-ip,"192.168.3.28"]
+    depends_on:
+      - redis-node1
+      - redis-node2
+      - redis-node3
