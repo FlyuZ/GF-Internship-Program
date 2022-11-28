@@ -27,8 +27,8 @@ func NewGoRedisClient() (*redis.ClusterClient, error) {
 func clearAllKey(c *redis.ClusterClient) {
 	err := c.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
 		log.Println("client", client)
-		var cursor uint64
-		iter := client.Scan(ctx, cursor, "*", 10000).Iterator()
+		// var cursor uint64
+		iter := client.Scan(ctx, 0, "*", 10000).Iterator()
 		for iter.Next(ctx) {
 			if err := client.Del(ctx, iter.Val()).Err(); err != nil {
 				log.Println(err)
@@ -36,7 +36,7 @@ func clearAllKey(c *redis.ClusterClient) {
 			}
 			log.Print(iter.Val())
 		}
-		iter = client.Scan(ctx, cursor, "prefix:*", 10000).Iterator()
+		iter = client.Scan(ctx, 0, "prefix:*", 10000).Iterator()
 		for iter.Next(ctx) {
 			if err := client.Del(ctx, iter.Val()).Err(); err != nil {
 				log.Println(err)
@@ -44,7 +44,7 @@ func clearAllKey(c *redis.ClusterClient) {
 			}
 			log.Print(iter.Val())
 		}
-		iter = client.SScan(ctx, "set-key", cursor, "prefix:*", 10000).Iterator()
+		iter = client.SScan(ctx, "set-key", 0, "prefix:*", 10000).Iterator()
 		for iter.Next(ctx) {
 			if err := client.SRem(ctx, "set-key", iter.Val()).Err(); err != nil {
 				log.Println(err)
@@ -59,12 +59,11 @@ func clearAllKey(c *redis.ClusterClient) {
 	}
 }
 
-
 func main() {
 	file, _ := os.OpenFile("logfile.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
 	defer file.Close()
 	log.SetOutput(file)
-	log.SetFlags(log.Llongfile)
+	log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
 	log.Println("begin")
 	client, _ := NewGoRedisClient()
 	clearAllKey(client)

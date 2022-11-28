@@ -2,65 +2,16 @@
 // Author zfy <522893161@qq.com>
 // Build on 2022/11
 
-// 业务逻辑
-
 package gf
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"strings"
-
-	redis "github.com/go-redis/redis/v8"
 )
 
-var ctx = context.Background()
-var clusterAddrs = []string{"192.168.3.28:7000", "192.168.3.28:7001", "192.168.3.28:7002"}
-var password = "gf123456"
-
-func NewGoRedisClient() (*redis.ClusterClient, error) {
-	client := redis.NewClusterClient(&redis.ClusterOptions{
-		Addrs:    clusterAddrs,
-		Password: password,
-	})
-	if err := client.Ping(ctx).Err(); err != nil {
-		log.Println(err)
-		return nil, err
-	}
-	return client, nil
-}
-
-var client, _ = NewGoRedisClient()
-
-// 最新价消息结构体
-type LastPriceInfo struct {
-	Exchange_type string  // 市场
-	Stock_code    string  //代码
-	Last_price    float64 // 最新价
-}
-
-// 成交记录消息结构体
-type StockInfo struct {
-	Client_id       string //客户号
-	Exchange_type   string //市场
-	Stock_code      string //代码
-	Entrust_bs      string //买卖方向"1":买入、"2":卖出
-	Business_amount int64  //成交数量
-}
-
-// 持仓消息结构体
-type HoldingInfo struct {
-	Client_id     string  //客户号
-	Exchange_type string  //市场
-	Stock_code    string  //代码
-	Hold_amount   int64   //持仓数量
-	Last_price    float64 //最新价
-	Market_value  float64 //市值hold_amount*last_price
-}
-
 // 成交记录消息分发中心
-func RecordDistribution(stock_info StockInfo) error {
+func RecordDistributionS(stock_info StockInfo) error {
 	// check stock_code set
 	// if set not exists => create newholding
 	// if entrust_bs == 1 => HoldingAddedUpdate
@@ -69,24 +20,24 @@ func RecordDistribution(stock_info StockInfo) error {
 	if err != nil {
 		return err
 	}
-	if !stock_code_set {
-		NewHolding(stock_info)
-	} else {
+	if !stock_code_set && stock_info.Entrust_bs == "1" {
+		newHoldingS(stock_info)
+	} else if stock_code_set {
 		client_holding_key := strings.Join([]string{stock_info.Client_id, stock_info.Stock_code}, "_")
 		holding_info_str, _ := client.Get(ctx, client_holding_key).Result()
 		var holding_info HoldingInfo
 		json.Unmarshal([]byte(holding_info_str), &holding_info)
 		if stock_info.Entrust_bs == "1" {
-			HoldingAddedUpdate(stock_info, holding_info, client_holding_key)
+			holdingAddedUpdateS(stock_info, holding_info, client_holding_key)
 		} else if stock_info.Entrust_bs == "2" {
-			HoldingReductionUpdate(stock_info, holding_info, client_holding_key)
+			holdingReductionUpdateS(stock_info, holding_info, client_holding_key)
 		}
 	}
 	return nil
 }
 
 // 最新价消息分发中心
-func LastPriceDistribution(lastPrice_info LastPriceInfo) error {
+func LastPriceDistributionS(lastPrice_info LastPriceInfo) error {
 	// get client_id_list
 	client_id_llen, err := client.LLen(ctx, lastPrice_info.Stock_code).Result()
 	if err != nil {
@@ -97,13 +48,13 @@ func LastPriceDistribution(lastPrice_info LastPriceInfo) error {
 		return err
 	}
 	for _, client_id := range client_id_list {
-		LatestPriceUpdate(client_id, lastPrice_info)
+		latestPriceUpdateS(client_id, lastPrice_info)
 	}
 	return nil
 }
 
 // 新建持仓
-func NewHolding(stock_info StockInfo) error {
+func newHoldingS(stock_info StockInfo) error {
 	client.SAdd(ctx, stock_info.Client_id, stock_info.Stock_code)
 	client.LPush(ctx, stock_info.Stock_code, stock_info.Client_id)
 	client_holding_key := strings.Join([]string{stock_info.Client_id, stock_info.Stock_code}, "_")
@@ -115,7 +66,7 @@ func NewHolding(stock_info StockInfo) error {
 }
 
 // 持仓新增更新
-func HoldingAddedUpdate(stock_info StockInfo, holding_info HoldingInfo, client_holding_key string) error {
+func holdingAddedUpdateS(stock_info StockInfo, holding_info HoldingInfo, client_holding_key string) error {
 	holding_info.Hold_amount += stock_info.Business_amount
 	holding_info.Market_value = float64(holding_info.Hold_amount) * holding_info.Last_price
 	new_holding_info_str, err := json.Marshal(holding_info)
@@ -124,7 +75,7 @@ func HoldingAddedUpdate(stock_info StockInfo, holding_info HoldingInfo, client_h
 }
 
 // 持仓减少更新/清空持仓
-func HoldingReductionUpdate(stock_info StockInfo, holding_info HoldingInfo, client_holding_key string) error {
+func holdingReductionUpdateS(stock_info StockInfo, holding_info HoldingInfo, client_holding_key string) error {
 	if holding_info.Hold_amount > stock_info.Business_amount {
 		holding_info.Hold_amount -= stock_info.Business_amount
 		holding_info.Market_value = float64(holding_info.Hold_amount) * holding_info.Last_price
@@ -143,7 +94,7 @@ func HoldingReductionUpdate(stock_info StockInfo, holding_info HoldingInfo, clie
 }
 
 // 持仓市值更新
-func LatestPriceUpdate(client_id string, lastPrice_info LastPriceInfo) error {
+func latestPriceUpdateS(client_id string, lastPrice_info LastPriceInfo) error {
 	client_holding_key := strings.Join([]string{client_id, lastPrice_info.Stock_code}, "_")
 	holding_info_str, err := client.Get(ctx, client_holding_key).Result()
 	if err != nil {
@@ -159,4 +110,8 @@ func LatestPriceUpdate(client_id string, lastPrice_info LastPriceInfo) error {
 	}
 	client.Set(ctx, client_holding_key, new_holding_info_str, 0)
 	return nil
+}
+
+func CloseS() {
+	client.Close()
 }
