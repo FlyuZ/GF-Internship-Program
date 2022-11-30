@@ -8,13 +8,12 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"os"
-	"strconv"
-	"runtime/pprof"
 	_ "net/http/pprof"
+	"os"
+	"runtime/pprof"
+	"strconv"
 	"testing"
 	"time"
-	// "flag"
 
 	"github.com/panjf2000/ants/v2"
 )
@@ -24,13 +23,13 @@ import (
 // 客户号(client_id) 取值返回为:  000000000001-999999999999，随机获取100个客户号，每个客户号有1-100条持仓记录
 
 var (
-	file *os.File
+	file       *os.File
 	cpuProfile *os.File
 	memProfile *os.File
 )
 
 const (
-	RunTimes = 1000
+	RunTimes      = 1000
 	FakeDataLenth = 10000
 )
 
@@ -39,8 +38,9 @@ func initlog() {
 	log.SetOutput(file)
 	log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
 	log.Println("load json success")
+	client, _ = NewGoRedisClient()
 }
-func initppof(){
+func initppof() {
 	cpuProfile, _ = os.Create("./pprof/cpu_profile")
 	memProfile, _ = os.Create("./pprof/mem_profile")
 	pprof.StartCPUProfile(cpuProfile)
@@ -74,9 +74,7 @@ func generateStockCode() (string, string) {
 	}
 	return exchange_type_temp, stock_code_temp
 }
-
-// 生成虚拟成交记录消息
-func GenerateStockRecord(entrust_bs string) [FakeDataLenth]StockInfo {
+func generateInStockRecord() [FakeDataLenth]StockInfo {
 	var fake_stockInfo [FakeDataLenth]StockInfo
 	for i := 0; i < FakeDataLenth; i++ {
 		exchange_type_temp, stock_code_temp := generateStockCode()
@@ -84,11 +82,55 @@ func GenerateStockRecord(entrust_bs string) [FakeDataLenth]StockInfo {
 			Client_id:       random_client_id[rand.Intn(len(random_client_id))],
 			Exchange_type:   exchange_type_temp,
 			Stock_code:      stock_code_temp,
-			Entrust_bs:      entrust_bs,
+			Entrust_bs:      "1",
 			Business_amount: 100*rand.Int63n(9) + 100, //最少100手
 		}
 	}
 	return fake_stockInfo
+}
+func generateOutStockRecord() [FakeDataLenth]StockInfo {
+	var fake_stockInfo [FakeDataLenth]StockInfo
+	index := 0
+	for _, cur_client_id := range random_client_id {
+		stock_code, _ := client.SMembers(ctx, cur_client_id).Result()
+		for _, cur_stock_code := range stock_code {
+			var exchange_type_temp string
+			if cur_stock_code[0] == '6' {
+				exchange_type_temp = "1"
+			} else {
+				exchange_type_temp = "2"
+			}
+			fake_stockInfo[index] = StockInfo{
+				Client_id:       cur_client_id,
+				Exchange_type:   exchange_type_temp,
+				Stock_code:      cur_stock_code,
+				Entrust_bs:      "2",
+				Business_amount: 100,
+			}
+			index++
+		}
+	}
+	for i := index; i < FakeDataLenth; i++ {
+		exchange_type_temp, stock_code_temp := generateStockCode()
+		fake_stockInfo[i] = StockInfo{
+			Client_id:       random_client_id[rand.Intn(len(random_client_id))],
+			Exchange_type:   exchange_type_temp,
+			Stock_code:      stock_code_temp,
+			Entrust_bs:      "2",
+			Business_amount: 100,
+		}
+	}
+	return fake_stockInfo
+}
+
+// 生成虚拟成交记录消息
+// 调整一下卖出 都卖已有数据
+func GenerateStockRecord(entrust_bs string) [FakeDataLenth]StockInfo {
+	if entrust_bs == "1" {
+		return generateInStockRecord()
+	} else {
+		return generateOutStockRecord()
+	}
 }
 
 // 生成虚拟最新价消息
@@ -108,7 +150,7 @@ func GenerateLastPrice() [FakeDataLenth]LastPriceInfo {
 func BenchmarkInRecordSerial(b *testing.B) {
 	initlog()
 	fake_stockInfo := GenerateStockRecord("1")
-	b.ResetTimer() // 重置定时器
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		err := RecordDistributionS(fake_stockInfo[i])
 		log.Println(err)
@@ -120,7 +162,7 @@ func BenchmarkInRecordSerial(b *testing.B) {
 func BenchmarkLastPriceSerial(b *testing.B) {
 	initlog()
 	fake_lastPriceInfo := GenerateLastPrice()
-	b.ResetTimer() // 重置定时器
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		err := LastPriceDistributionS(fake_lastPriceInfo[i])
 		log.Println(err)
@@ -132,7 +174,7 @@ func BenchmarkLastPriceSerial(b *testing.B) {
 func BenchmarkOutRecordSerial(b *testing.B) {
 	initlog()
 	fake_stockInfo := GenerateStockRecord("2")
-	b.ResetTimer() // 重置定时器
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		err := RecordDistributionS(fake_stockInfo[i])
 		log.Println(err)
@@ -144,44 +186,48 @@ func BenchmarkOutRecordSerial(b *testing.B) {
 func BenchmarkInRecordParallel(b *testing.B) {
 	initlog()
 	defer ants.Release()
-	var lockerr = errors.New("lock error")
+	var lockerr = errors.New("Lockfailed")
 	fake_stockInfo := GenerateStockRecord("1")
-	initppof()
-	b.ResetTimer() // 重置定时器
+	initppof() // 用于查看测试效果
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		index := rand.Intn(10000)
 		go func(index int) {
 			for {
 				err := RecordDistributionP(fake_stockInfo[index])
 				log.Println(err)
-				log.Println(index)
 				if !errors.Is(err, lockerr) {
 					break
 				}
+				time.Sleep(time.Duration(50) * time.Millisecond)
 			}
 		}(index)
+		// 用于控制QPS
+		time.Sleep(time.Duration(20) * time.Microsecond)
 	}
 	b.StopTimer()
 	close()
 }
+
 func BenchmarkLastPriceParallel(b *testing.B) {
 	initlog()
 	defer ants.Release()
-	var lockerr = errors.New("lock error")
+	var lockerr = errors.New("Lockfailed")
 	fake_lastPriceInfo := GenerateLastPrice()
-	b.ResetTimer() // 重置定时器
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		index := rand.Intn(10000)
 		go func(index int) {
 			for {
 				err := LastPriceDistributionP(fake_lastPriceInfo[index])
 				log.Println(err)
-				log.Println(index)
 				if !errors.Is(err, lockerr) {
 					break
 				}
+				time.Sleep(time.Duration(50) * time.Millisecond)
 			}
 		}(index)
+		time.Sleep(time.Duration(20) * time.Microsecond)
 	}
 	b.StopTimer()
 	close()
@@ -190,21 +236,22 @@ func BenchmarkLastPriceParallel(b *testing.B) {
 func BenchmarkOutRecordParallel(b *testing.B) {
 	initlog()
 	defer ants.Release()
-	var lockerr = errors.New("lock error")
+	var lockerr = errors.New("Lockfailed")
 	fake_stockInfo := GenerateStockRecord("2")
-	b.ResetTimer() // 重置定时器
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		index := rand.Intn(10000)
 		go func(index int) {
 			for {
 				err := RecordDistributionP(fake_stockInfo[index])
 				log.Println(err)
-				log.Println(index)
 				if !errors.Is(err, lockerr) {
 					break
 				}
+				time.Sleep(time.Duration(50) * time.Millisecond)
 			}
 		}(index)
+		time.Sleep(time.Duration(20) * time.Microsecond)
 	}
 	b.StopTimer()
 	close()

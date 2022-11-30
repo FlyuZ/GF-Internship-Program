@@ -15,8 +15,9 @@ import (
 func reidsLock(client_holding_key string) (bool, string) {
 	// random_value, _ := rand.Prime(rand.Reader, 9) // 随时生成9位随机数
 	client_holding_lock_key := strings.Join([]string{client_holding_key, "lock"}, "_")
-	ok := client.SetNX(ctx, client_holding_lock_key, client_holding_key, time.Second*1)
-	return ok.Val(), client_holding_lock_key
+	log.Println(client_holding_lock_key)
+	ok := client.SetNX(ctx, client_holding_lock_key, client_holding_key, time.Second*1).Val()
+	return ok, client_holding_lock_key
 }
 
 // 成交记录消息分发中心
@@ -33,7 +34,7 @@ func RecordDistributionP(stock_info StockInfo) error {
 	// 上锁
 	ok, client_holding_lock_key := reidsLock(client_holding_key)
 	if !ok {
-		return errors.New("lock failed")
+		return errors.New("Lockfailed")
 	}
 	if !stock_code_set && stock_info.Entrust_bs == "1" {
 		newHoldingP(stock_info)
