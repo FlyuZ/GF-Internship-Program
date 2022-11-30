@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/panjf2000/ants/v2"
+	// "github.com/panjf2000/ants/v2"
 )
 
 
@@ -29,7 +29,7 @@ const (
 	RunTimes      = 1000
 	FakeDataLenth = 10000
 )
-
+//初始化
 func initlog() {
 	file, _ = os.OpenFile("logfile.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
 	log.SetOutput(file)
@@ -184,7 +184,6 @@ func BenchmarkOutRecordSerial(b *testing.B) {
 
 func BenchmarkInRecordParallel(b *testing.B) {
 	initlog()
-	defer ants.Release()
 	var lockerr = errors.New("Lockfailed")
 	fake_stockInfo := GenerateStockRecord("1")
 	initppof() // 用于查看测试效果
@@ -210,7 +209,6 @@ func BenchmarkInRecordParallel(b *testing.B) {
 
 func BenchmarkLastPriceParallel(b *testing.B) {
 	initlog()
-	defer ants.Release()
 	var lockerr = errors.New("Lockfailed")
 	fake_lastPriceInfo := GenerateLastPrice()
 	b.ResetTimer()
@@ -234,7 +232,6 @@ func BenchmarkLastPriceParallel(b *testing.B) {
 
 func BenchmarkOutRecordParallel(b *testing.B) {
 	initlog()
-	defer ants.Release()
 	var lockerr = errors.New("Lockfailed")
 	fake_stockInfo := GenerateStockRecord("2")
 	b.ResetTimer()
