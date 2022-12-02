@@ -8,7 +8,7 @@ services:
       - "7006:7006"
       - "17006:17006"
     restart: always
-    entrypoint: [redis-server, /etc/redis/rediscluster.conf,    --port,"7006",--cluster-announce-ip,"192.168.3.28"]
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf, --port,"7006",--cluster-announce-ip,"192.168.3.28"]
 
   redis-node7:
     build:

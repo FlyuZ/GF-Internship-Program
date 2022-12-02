@@ -15,9 +15,12 @@ import (
 	"testing"
 	"time"
 
-	// "github.com/panjf2000/ants/v2"
+	"github.com/panjf2000/ants/v2"
 )
 
+// 市场 (exchange_type) 为"1" (沪市)，"2”(深市)
+// 沪市的stock_code 取值范围为:60000-600999,深市的stok code值范围为: 000001-001000，即沪深各1000个市场代码，last_price值返回为10.00-1000.00之间的随机数（两位小数）
+// 客户号(client_id) 取值返回为:  000000000001-999999999999，随机获取100个客户号，每个客户号有1-100条持仓记录
 
 var (
 	file       *os.File
@@ -29,7 +32,7 @@ const (
 	RunTimes      = 1000
 	FakeDataLenth = 10000
 )
-//初始化
+
 func initlog() {
 	file, _ = os.OpenFile("logfile.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
 	log.SetOutput(file)
@@ -51,7 +54,6 @@ func close() {
 	file.Close()
 }
 
-// 保留两位小数
 func Decimal(num float64) float64 {
 	num, _ = strconv.ParseFloat(fmt.Sprintf("%.2f", num), 64)
 	return num
@@ -86,8 +88,6 @@ func generateInStockRecord() [FakeDataLenth]StockInfo {
 	}
 	return fake_stockInfo
 }
-
-// 生成虚拟卖出时，查询redis里能卖的股票
 func generateOutStockRecord() [FakeDataLenth]StockInfo {
 	var fake_stockInfo [FakeDataLenth]StockInfo
 	index := 0
@@ -108,6 +108,9 @@ func generateOutStockRecord() [FakeDataLenth]StockInfo {
 				Business_amount: 100,
 			}
 			index++
+			if index == FakeDataLenth {
+				return fake_stockInfo
+			}
 		}
 	}
 	for i := index; i < FakeDataLenth; i++ {
@@ -124,6 +127,7 @@ func generateOutStockRecord() [FakeDataLenth]StockInfo {
 }
 
 // 生成虚拟成交记录消息
+// 调整一下卖出 都卖已有数据
 func GenerateStockRecord(entrust_bs string) [FakeDataLenth]StockInfo {
 	if entrust_bs == "1" {
 		return generateInStockRecord()
@@ -146,44 +150,48 @@ func GenerateLastPrice() [FakeDataLenth]LastPriceInfo {
 	return fake_lastPriceInfo
 }
 
-func BenchmarkInRecordSerial(b *testing.B) {
+func Benchmark_InRecordSerial(b *testing.B) {
 	initlog()
 	fake_stockInfo := GenerateStockRecord("1")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := RecordDistributionS(fake_stockInfo[i])
+		index := rand.Intn(10000)
+		err := RecordDistributionS(fake_stockInfo[index])
 		log.Println(err)
 	}
 	b.StopTimer()
 	close()
 }
 
-func BenchmarkLastPriceSerial(b *testing.B) {
+func Benchmark_LastPriceSerial(b *testing.B) {
 	initlog()
 	fake_lastPriceInfo := GenerateLastPrice()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := LastPriceDistributionS(fake_lastPriceInfo[i])
+		index := rand.Intn(10000)
+		err := LastPriceDistributionS(fake_lastPriceInfo[index])
 		log.Println(err)
 	}
 	b.StopTimer()
 	close()
 }
 
-func BenchmarkOutRecordSerial(b *testing.B) {
+func Benchmark_OutRecordSerial(b *testing.B) {
 	initlog()
 	fake_stockInfo := GenerateStockRecord("2")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := RecordDistributionS(fake_stockInfo[i])
+		index := rand.Intn(10000)
+		err := RecordDistributionS(fake_stockInfo[index])
 		log.Println(err)
 	}
 	b.StopTimer()
 	close()
 }
 
-func BenchmarkInRecordParallel(b *testing.B) {
+func Benchmark_InRecordParallel(b *testing.B) {
 	initlog()
+	defer ants.Release()
 	var lockerr = errors.New("Lockfailed")
 	fake_stockInfo := GenerateStockRecord("1")
 	initppof() // 用于查看测试效果
@@ -207,8 +215,9 @@ func BenchmarkInRecordParallel(b *testing.B) {
 	close()
 }
 
-func BenchmarkLastPriceParallel(b *testing.B) {
+func Benchmark_LastPriceParallel(b *testing.B) {
 	initlog()
+	defer ants.Release()
 	var lockerr = errors.New("Lockfailed")
 	fake_lastPriceInfo := GenerateLastPrice()
 	b.ResetTimer()
@@ -230,8 +239,9 @@ func BenchmarkLastPriceParallel(b *testing.B) {
 	close()
 }
 
-func BenchmarkOutRecordParallel(b *testing.B) {
+func Benchmark_OutRecordParallel(b *testing.B) {
 	initlog()
+	defer ants.Release()
 	var lockerr = errors.New("Lockfailed")
 	fake_stockInfo := GenerateStockRecord("2")
 	b.ResetTimer()

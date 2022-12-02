@@ -4,3 +4,7 @@
 ```bash
 docker-compose up -d --build
 ```
+
+```bash
+docker-compose -f docker-compose-add.yml up -d
+```
