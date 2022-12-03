@@ -3,21 +3,23 @@ services:
   redis-node6:
     build:
       context: redis
+      dockerfile: adddockerfile
     container_name: redis-server-6
     ports:
       - "7006:7006"
       - "17006:17006"
     restart: always
-    entrypoint: [redis-server, /etc/redis/rediscluster.conf, --port,"7006",--cluster-announce-ip,"192.168.3.28"]
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf, --port, "7006", --cluster-announce-ip, "192.168.3.28"]
+    
 
-  redis-node7:
-    build:
-      context: redis
-    container_name: redis-server-7
-    ports:
-      - "7007:7007"
-      - "17007:17007"
-    restart: always
-    entrypoint: [redis-server, /etc/redis/rediscluster.conf,    --port,"7007",--cluster-announce-ip,"192.168.3.28"]
-    depends_on:
-      - redis-node6
+  # redis-node7:
+  #   build:
+  #     context: redis
+  #   container_name: redis-server-7
+  #   ports:
+  #     - "7007:7007"
+  #     - "17007:17007"
+  #   restart: always
+  #   entrypoint: [redis-server, /etc/redis/rediscluster.conf,    --port,"7007",--cluster-announce-ip,"192.168.3.28"]
+  #   depends_on:
+  #     - redis-node6

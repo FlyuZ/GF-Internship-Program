@@ -26,19 +26,34 @@ docker-compose -f docker-compose-add.yml up -d
 (2)将节点加入集群
 docker exec -it redis-server-6 sh redis-cli -a gf123456 --cluster check 192.168.3.28:7006
 redis-cli -a gf123456 --cluster add-node 192.168.3.28:7006 192.168.3.28:7001
-redis-cli -a gf123456 --cluster reshard  192.168.3.28:7006
-yes  all
+redis-cli -a gf123456  --cluster rebalance 192.168.3.28:7006  --cluster-use-empty-masters 
+(集成到shell脚本，在docekr中运行sh start.sh)
 
 (3)测试业务
-go test -benchmem -bench="InRecordParallel|LastPriceParallel|OutRecordParallel"  -benchtime=3s
+go test -benchmem -bench="InRecordParallel|LastPriceParallel|OutRecordParallel"  -benchtime=10s
 ```
 ### 缩容时测试
 ```
-需要先把预删除节点中的数据迁移
+(1)用于获取node的id
+redis-cli -a gf123456 --cluster check 192.168.3.28:7006
+(2)自动迁移数据
+redis-cli -a gf123456 --cluster reshard 192.168.3.28:7006 \
+--cluster-from <node_id> \
+--cluster-to  <node_id> \
+--cluster-slots 4096 \
+--cluster-yes
+(3)测试业务
+go test -benchmem -bench="InRecordParallel|LastPriceParallel|OutRecordParallel"  -benchtime=10s
 ```
 
 ### 查看pprof
 ```
 cd pprof
 go tool pprof -http=":8081"  cpu_profile
+```
+
+### 工具
+```
+# 清除数据
+go run redisTool.go -clear  
 ```

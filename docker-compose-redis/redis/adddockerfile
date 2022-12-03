@@ -1,0 +1,5 @@
+FROM redis:6.2
+LABEL authors="zfy"
+COPY rediscluster.conf /etc/redis/rediscluster.conf
+COPY start.sh /start.sh
+ENTRYPOINT redis-server /etc/redis/rediscluster.conf

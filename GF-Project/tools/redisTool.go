@@ -2,15 +2,20 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 
 	redis "github.com/go-redis/redis/v8"
 )
 
-var ctx = context.Background()
-var clusterAddrs = []string{"192.168.3.28:7003"}
-var password = "gf123456"
+var (
+	ctx          = context.Background()
+	clusterAddrs = []string{"192.168.3.28:7000"}
+	password     = "gf123456"
+	client, _    = NewGoRedisClient()
+	clear        bool
+)
 
 func NewGoRedisClient() (*redis.ClusterClient, error) {
 	client := redis.NewClusterClient(&redis.ClusterOptions{
@@ -65,7 +70,13 @@ func main() {
 	log.SetOutput(file)
 	log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
 	log.Println("begin")
-	client, _ := NewGoRedisClient()
-	clearAllKey(client)
+
+	flag.BoolVar(&clear, "clear", false, "清除数据")
+	flag.Parse()
+
+	if clear {
+		log.Println("clear")
+		clearAllKey(client)
+	}
 	defer client.Close()
 }
