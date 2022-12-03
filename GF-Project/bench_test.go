@@ -14,8 +14,7 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/panjf2000/ants/v2"
+	// "github.com/panjf2000/ants/v2"
 )
 
 // 市场 (exchange_type) 为"1" (沪市)，"2”(深市)
@@ -191,7 +190,7 @@ func Benchmark_OutRecordSerial(b *testing.B) {
 
 func Benchmark_InRecordParallel(b *testing.B) {
 	initlog()
-	defer ants.Release()
+	// defer ants.Release()
 	var lockerr = errors.New("Lockfailed")
 	fake_stockInfo := GenerateStockRecord("1")
 	initppof() // 用于查看测试效果
@@ -217,7 +216,7 @@ func Benchmark_InRecordParallel(b *testing.B) {
 
 func Benchmark_LastPriceParallel(b *testing.B) {
 	initlog()
-	defer ants.Release()
+	// defer ants.Release()
 	var lockerr = errors.New("Lockfailed")
 	fake_lastPriceInfo := GenerateLastPrice()
 	b.ResetTimer()
@@ -241,7 +240,7 @@ func Benchmark_LastPriceParallel(b *testing.B) {
 
 func Benchmark_OutRecordParallel(b *testing.B) {
 	initlog()
-	defer ants.Release()
+	// defer ants.Release()
 	var lockerr = errors.New("Lockfailed")
 	fake_stockInfo := GenerateStockRecord("2")
 	b.ResetTimer()
