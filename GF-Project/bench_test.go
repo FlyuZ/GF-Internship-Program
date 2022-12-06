@@ -4,7 +4,6 @@
 package gf
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	uuid "github.com/satori/go.uuid"
 	// "github.com/panjf2000/ants/v2"
 )
 
@@ -30,6 +31,7 @@ var (
 const (
 	RunTimes      = 1000
 	FakeDataLenth = 10000
+	SleepTimes    = 15
 )
 
 func initlog() {
@@ -73,11 +75,13 @@ func generateStockCode() (string, string) {
 	}
 	return exchange_type_temp, stock_code_temp
 }
+
 func generateInStockRecord() [FakeDataLenth]StockInfo {
 	var fake_stockInfo [FakeDataLenth]StockInfo
 	for i := 0; i < FakeDataLenth; i++ {
 		exchange_type_temp, stock_code_temp := generateStockCode()
 		fake_stockInfo[i] = StockInfo{
+			Order_id:        uuid.NewV4().String(),
 			Client_id:       random_client_id[rand.Intn(len(random_client_id))],
 			Exchange_type:   exchange_type_temp,
 			Stock_code:      stock_code_temp,
@@ -87,6 +91,7 @@ func generateInStockRecord() [FakeDataLenth]StockInfo {
 	}
 	return fake_stockInfo
 }
+
 func generateOutStockRecord() [FakeDataLenth]StockInfo {
 	var fake_stockInfo [FakeDataLenth]StockInfo
 	index := 0
@@ -100,11 +105,12 @@ func generateOutStockRecord() [FakeDataLenth]StockInfo {
 				exchange_type_temp = "2"
 			}
 			fake_stockInfo[index] = StockInfo{
+				Order_id:        uuid.NewV4().String(),
 				Client_id:       cur_client_id,
 				Exchange_type:   exchange_type_temp,
 				Stock_code:      cur_stock_code,
 				Entrust_bs:      "2",
-				Business_amount: 100,
+				Business_amount: 100*rand.Int63n(9) + 100, //最少100手
 			}
 			index++
 			if index == FakeDataLenth {
@@ -115,11 +121,12 @@ func generateOutStockRecord() [FakeDataLenth]StockInfo {
 	for i := index; i < FakeDataLenth; i++ {
 		exchange_type_temp, stock_code_temp := generateStockCode()
 		fake_stockInfo[i] = StockInfo{
+			Order_id:        uuid.NewV4().String(),
 			Client_id:       random_client_id[rand.Intn(len(random_client_id))],
 			Exchange_type:   exchange_type_temp,
 			Stock_code:      stock_code_temp,
 			Entrust_bs:      "2",
-			Business_amount: 100,
+			Business_amount: 100*rand.Int63n(9) + 100, //最少100手
 		}
 	}
 	return fake_stockInfo
@@ -190,8 +197,6 @@ func Benchmark_OutRecordSerial(b *testing.B) {
 
 func Benchmark_InRecordParallel(b *testing.B) {
 	initlog()
-	// defer ants.Release()
-	var lockerr = errors.New("Lockfailed")
 	fake_stockInfo := GenerateStockRecord("1")
 	initppof() // 用于查看测试效果
 	b.ResetTimer()
@@ -200,15 +205,16 @@ func Benchmark_InRecordParallel(b *testing.B) {
 		go func(index int) {
 			for {
 				err := RecordDistributionP(fake_stockInfo[index])
-				log.Println(err)
-				if !errors.Is(err, lockerr) {
+				if err == nil {
 					break
+				} else {
+					log.Println(err)
 				}
-				time.Sleep(time.Duration(50) * time.Millisecond)
+				time.Sleep(time.Duration(SleepTimes) * time.Millisecond)
 			}
 		}(index)
 		// 用于控制QPS
-		time.Sleep(time.Duration(20) * time.Microsecond)
+		time.Sleep(time.Duration(SleepTimes) * time.Microsecond)
 	}
 	b.StopTimer()
 	close()
@@ -216,8 +222,6 @@ func Benchmark_InRecordParallel(b *testing.B) {
 
 func Benchmark_LastPriceParallel(b *testing.B) {
 	initlog()
-	// defer ants.Release()
-	var lockerr = errors.New("Lockfailed")
 	fake_lastPriceInfo := GenerateLastPrice()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -225,14 +229,15 @@ func Benchmark_LastPriceParallel(b *testing.B) {
 		go func(index int) {
 			for {
 				err := LastPriceDistributionP(fake_lastPriceInfo[index])
-				log.Println(err)
-				if !errors.Is(err, lockerr) {
+				if err == nil {
 					break
+				} else {
+					log.Println(err)
 				}
-				time.Sleep(time.Duration(50) * time.Millisecond)
+				time.Sleep(time.Duration(SleepTimes) * time.Millisecond)
 			}
 		}(index)
-		time.Sleep(time.Duration(20) * time.Microsecond)
+		time.Sleep(time.Duration(SleepTimes) * time.Microsecond)
 	}
 	b.StopTimer()
 	close()
@@ -240,8 +245,6 @@ func Benchmark_LastPriceParallel(b *testing.B) {
 
 func Benchmark_OutRecordParallel(b *testing.B) {
 	initlog()
-	// defer ants.Release()
-	var lockerr = errors.New("Lockfailed")
 	fake_stockInfo := GenerateStockRecord("2")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -250,13 +253,15 @@ func Benchmark_OutRecordParallel(b *testing.B) {
 			for {
 				err := RecordDistributionP(fake_stockInfo[index])
 				log.Println(err)
-				if !errors.Is(err, lockerr) {
+				if err == nil {
 					break
+				} else {
+					log.Println(err)
 				}
-				time.Sleep(time.Duration(50) * time.Millisecond)
+				time.Sleep(time.Duration(SleepTimes) * time.Millisecond)
 			}
 		}(index)
-		time.Sleep(time.Duration(20) * time.Microsecond)
+		time.Sleep(time.Duration(SleepTimes) * time.Microsecond)
 	}
 	b.StopTimer()
 	close()

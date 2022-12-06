@@ -11,9 +11,6 @@ import (
 	redis "github.com/go-redis/redis/v8"
 )
 
-// 市场 (exchange_type) 为"1" (沪市)，"2”(深市)
-// 沪市的stock_code 取值范围为:60000-600999,深市的stok code值范围为: 000001-001000，即沪深各1000个市场代码，last_price值返回为10.00-1000.00之间的随机数（两位小数）
-// 客户号(client_id) 取值返回为:  000000000001-999999999999，随机获取100个客户号，每个客户号有1-100条持仓记录
 var (
 	ctx          = context.Background()
 	clusterAddrs = []string{"192.168.3.28:7001", "192.168.3.28:7003", "192.168.3.28:7005"}
@@ -47,6 +44,7 @@ type LastPriceInfo struct {
 
 // 成交记录消息结构体
 type StockInfo struct {
+	Order_id        string //成交单号
 	Client_id       string //客户号
 	Exchange_type   string //市场
 	Stock_code      string //代码
