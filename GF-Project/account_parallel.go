@@ -52,6 +52,7 @@ func RecordDistributionP(stock_info StockInfo) error {
 		}
 	}
 	// 解锁
+	client.Del(ctx, stock_info.Order_id)
 	client.Del(ctx, client_holding_lock_key)
 	return nil
 }
@@ -68,6 +69,7 @@ func LastPriceDistributionP(lastPrice_info LastPriceInfo) error {
 		return err
 	}
 	for _, client_id := range client_id_list {
+		//完善失败重试
 		go func() {
 			err = latestPriceUpdateP(client_id, lastPrice_info)
 		}()
@@ -112,7 +114,8 @@ func holdingReductionUpdateP(stock_info StockInfo, holding_info HoldingInfo, cli
 	} else {
 		// 清空持仓
 		client.Del(ctx, client_holding_key)
-		client.SRem(ctx, stock_info.Stock_code, stock_info.Client_id)
+		client.SRem(ctx, stock_info.Client_id, stock_info.Stock_code)
+		client.LRem(ctx, stock_info.Stock_code, 0, stock_info.Client_id)
 	}
 	return nil
 }
