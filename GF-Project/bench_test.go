@@ -31,7 +31,7 @@ var (
 const (
 	RunTimes      = 1000
 	FakeDataLenth = 10000
-	SleepTimes    = 15
+	SleepTimes    = 30
 )
 
 func initlog() {

@@ -46,6 +46,8 @@ redis-cli -a gf123456 --cluster reshard 192.168.3.28:7006 \
 --cluster-yes
 (3)测试业务
 go test -benchmem -bench="InRecordParallel|LastPriceParallel|OutRecordParallel"  -benchtime=10s
+
+go test -benchmem -bench="InRecordParallel|LastPriceParallel|OutRecordParallel"  -benchtime=18000s
 ```
 
 ### 查看pprof
