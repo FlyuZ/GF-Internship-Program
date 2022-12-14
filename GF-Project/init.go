@@ -7,10 +7,17 @@ package gf
 import (
 	"context"
 	"log"
+	"strconv"
+	"time"
+	"math/rand"
+	"fmt"
+
+	uuid "github.com/satori/go.uuid"
 
 	redis "github.com/go-redis/redis/v8"
 )
 
+const FakeDataLenth = 10000
 var (
 	ctx          = context.Background()
 	clusterAddrs = []string{"192.168.3.28:7001", "192.168.3.28:7003", "192.168.3.28:7005"}
@@ -60,4 +67,106 @@ type HoldingInfo struct {
 	Hold_amount   int64   //持仓数量
 	Last_price    float64 //最新价
 	Market_value  float64 //市值hold_amount*last_price
+}
+
+
+func Decimal(num float64) float64 {
+	num, _ = strconv.ParseFloat(fmt.Sprintf("%.2f", num), 64)
+	return num
+}
+
+func generateStockCode() (string, string) {
+	rand_string := []string{"1", "2"}
+	rand.Seed(time.Now().UnixNano())
+	exchange_type_temp := rand_string[rand.Intn(2)]
+	var stock_code_temp string
+	if exchange_type_temp == "1" {
+		stock_code_temp = strconv.Itoa(rand.Intn(1000) + 600000)
+	} else {
+		stock_code_temp = strconv.Itoa(rand.Intn(1000) + 100000)
+		stock_code_temp_byte := []byte(stock_code_temp)
+		stock_code_temp_byte[0] = '0'
+		stock_code_temp = string(stock_code_temp_byte)
+	}
+	return exchange_type_temp, stock_code_temp
+}
+
+func generateInStockRecord() [FakeDataLenth]StockInfo {
+	var fake_stockInfo [FakeDataLenth]StockInfo
+	for i := 0; i < FakeDataLenth; i++ {
+		exchange_type_temp, stock_code_temp := generateStockCode()
+		fake_stockInfo[i] = StockInfo{
+			Order_id:        uuid.NewV4().String(),
+			Client_id:       random_client_id[rand.Intn(len(random_client_id))],
+			Exchange_type:   exchange_type_temp,
+			Stock_code:      stock_code_temp,
+			Entrust_bs:      "1",
+			Business_amount: 100*rand.Int63n(9) + 100, //最少100手
+		}
+	}
+	return fake_stockInfo
+}
+
+func generateOutStockRecord() [FakeDataLenth]StockInfo {
+	var fake_stockInfo [FakeDataLenth]StockInfo
+	index := 0
+	for _, cur_client_id := range random_client_id {
+		stock_code, _ := client.SMembers(ctx, cur_client_id).Result()
+		for _, cur_stock_code := range stock_code {
+			var exchange_type_temp string
+			if cur_stock_code[0] == '6' {
+				exchange_type_temp = "1"
+			} else {
+				exchange_type_temp = "2"
+			}
+			fake_stockInfo[index] = StockInfo{
+				Order_id:        uuid.NewV4().String(),
+				Client_id:       cur_client_id,
+				Exchange_type:   exchange_type_temp,
+				Stock_code:      cur_stock_code,
+				Entrust_bs:      "2",
+				Business_amount: 100*rand.Int63n(9) + 100, //最少100手
+			}
+			index++
+			if index == FakeDataLenth {
+				return fake_stockInfo
+			}
+		}
+	}
+	for i := index; i < FakeDataLenth; i++ {
+		exchange_type_temp, stock_code_temp := generateStockCode()
+		fake_stockInfo[i] = StockInfo{
+			Order_id:        uuid.NewV4().String(),
+			Client_id:       random_client_id[rand.Intn(len(random_client_id))],
+			Exchange_type:   exchange_type_temp,
+			Stock_code:      stock_code_temp,
+			Entrust_bs:      "2",
+			Business_amount: 100*rand.Int63n(9) + 100, //最少100手
+		}
+	}
+	return fake_stockInfo
+}
+
+// 生成虚拟成交记录消息
+// 调整一下卖出 都卖已有数据
+func GenerateStockRecord(entrust_bs string) [FakeDataLenth]StockInfo {
+	if entrust_bs == "1" {
+		return generateInStockRecord()
+	} else {
+		return generateOutStockRecord()
+	}
+}
+
+// 生成虚拟最新价消息
+func GenerateLastPrice() [FakeDataLenth]LastPriceInfo {
+	var fake_lastPriceInfo [FakeDataLenth]LastPriceInfo
+	for i := 0; i < FakeDataLenth; i++ {
+		exchange_type_temp, stock_code_temp := generateStockCode()
+		fake_lastPriceInfo[i] = LastPriceInfo{
+			Exchange_type: exchange_type_temp,
+			Stock_code:    stock_code_temp,
+			Last_price:    Decimal(10.00 + rand.Float64()*990.00),
+		}
+	}
+	return fake_lastPriceInfo
 }

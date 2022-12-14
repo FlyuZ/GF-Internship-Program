@@ -20,6 +20,11 @@ go get github.com/panjf2000/ants/v2
 go test -benchmem -bench="."  -benchtime=1s
 ```
 
+### 压力测试
+```
+go test  -bench="Stress" -cpu=8 -timeout=480m  
+```
+
 ### 扩容时测试
 ```
 (1)新建redis服务节点
